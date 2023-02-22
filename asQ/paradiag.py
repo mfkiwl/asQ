@@ -203,8 +203,16 @@ class paradiag(object):
 
             postproc(self, wndw)
 
-            if not (1 < self.snes.getConvergedReason() < 5):
-                PETSc.Sys.Print(f'SNES diverged with error code {self.snes.getConvergedReason()}. Cancelling paradiag time integration.')
+            params = self.solver_parameters
+            if "snes_type" in params and params["snes_type"] == "ksponly":
+                solver_type = "KSP"
+                converged_reason = self.snes.getKSP().getConvergedReason()
+            else:
+                solver_type = "SNES"
+                converged_reason = self.snes.getConvergedReason()
+
+            if not (1 < converged_reason < 5):
+                PETSc.Sys.Print(f'{solver_type} diverged with error code {converged_reason}. Cancelling paradiag time integration.')
                 return
 
             # don't wipe all-at-once function at last window
