@@ -218,7 +218,7 @@ class DiagFFTPC(object):
                 'ksp_type': 'preonly',
                 'mat_type': 'nest',
                 'pc_type': 'fieldsplit',
-                'pc_field_split_type': 'additive',
+                'pc_fieldsplit_type': 'additive',
                 'fieldsplit': default_riesz_method
             }
         else:
