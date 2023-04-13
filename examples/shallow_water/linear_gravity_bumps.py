@@ -58,8 +58,15 @@ patch_parameters = {
     },
     'sub': {
         'ksp_type': 'preonly',
-        'pc_type': 'lu',
-        'pc_factor_shift_type': 'nonzero'
+        #'pc_type': 'lu',
+        #'pc_factor_shift_type': 'nonzero'
+        'pc_type': 'fieldsplit',
+        'pc_fieldsplit_type': 'schur',
+        'pc_fieldsplit_detect_saddle_point': None,
+        'pc_fieldsplit_schur_fact_type': 'full',
+        'pc_fieldsplit_schur_precondition': 'full',
+        'fieldsplit_ksp_type': 'preonly',
+        'fieldsplit_pc_type': 'lu',
     }
 }
 
@@ -80,6 +87,7 @@ mg_parameters = {
 }
 
 sparameters = {
+    'ksp_view': None,
     'mat_type': 'matfree',
     'ksp_type': 'fgmres',
     'ksp': {
@@ -113,8 +121,9 @@ sparameters_diag = {
     'pc_python_type': 'asQ.DiagFFTPC'
 }
 
-for i in range(window_length):
-    sparameters_diag['diagfft_block_'+str(i)+'_'] = sparameters
+sparameters_diag['diagfft_block_'] = sparameters
+#for i in range(window_length):
+#    sparameters_diag['diagfft_block_'+str(i)+'_'] = sparameters
 
 create_mesh = partial(
     swe.create_mg_globe_mesh,
