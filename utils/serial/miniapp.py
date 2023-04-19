@@ -70,11 +70,22 @@ class SerialMiniApp(object):
 
     def solve(self, nt,
               preproc=lambda miniapp, it, t: None,
-              postproc=lambda miniapp, it, t: None):
+              postproc=lambda miniapp, it, t: None,
+              ics=None):
         '''
         Integrate forward nt timesteps
+
+        :arg nt: the number of timesteps to integrate.
+        :arg preproc: callback called immediately before solving each timestep.
+        :arg postproc: callback called immediately after solving each timestep.
+        :arg ics: initial condition for the solve.
+            If None, self.w0 is used (equal to self.initial_condition on first call to solve).
         '''
         time = 0
+        if ics is not None:
+            self.w0.assign(ics)
+            self.w1.assign(ics)
+
         for step in range(nt):
             preproc(self, step, time)
 
