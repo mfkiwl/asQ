@@ -56,7 +56,7 @@ block_sparams = {
     'ksp': {
         # 'monitor': None,
         # 'converged_reason': None,
-        'rtol': 1e-8,
+        'rtol': 1e-5,
     },
     'ksp_type': 'preonly',
     'pc_type': 'lu',
