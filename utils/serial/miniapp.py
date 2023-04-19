@@ -24,11 +24,13 @@ class SerialMiniApp(object):
         :arg form_function: a function that returns a linear form on w_initial.function_space() providing f(w) for the ODE M*w_t + f(w) = 0
         :arg solver_parameters: options dictionary for nonlinear solver
         '''
-        self.dt = fd.Constant(dt)
-        self.theta = theta
 
         self.initial_condition = w_initial
         self.function_space = w_initial.function_space()
+        self.mesh = self.function_space.mesh()
+
+        self.dt = fd.Constant(dt, domain=self.mesh)
+        self.theta = fd.Constant(theta, domain=self.mesh)
 
         self.form_mass = form_mass
         self.form_function = form_function
@@ -54,9 +56,6 @@ class SerialMiniApp(object):
         '''
         Construct the finite element form for a single step of the implicit theta method
         '''
-
-        theta = fd.Constant(theta)
-
         v = fd.TestFunctions(w0.function_space())
         w1s = fd.split(w1)
         w0s = fd.split(w0)
