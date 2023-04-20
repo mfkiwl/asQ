@@ -114,8 +114,8 @@ class AllAtOnceSystem(object):
         self.nlocal_timesteps = self.layout.local_size
         self.ntimesteps = self.layout.global_size
 
-        self.initial_condition = w0
         self.function_space = w0.function_space()
+        self.initial_condition = fd.Function(self.function_space).assign(w0)
         self.reference_state = reference_state
         self.boundary_conditions = bcs
         self.ncomponents = len(self.function_space.subfunctions)
