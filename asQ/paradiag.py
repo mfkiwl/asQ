@@ -43,7 +43,7 @@ class paradiag(object):
                  alpha, time_partition, bcs=[],
                  solver_parameters={},
                  reference_state=None,
-                 circ="picard",
+                 circ=None,
                  tol=1.0e-6, maxits=10,
                  ctx={}, block_ctx={}, block_mat_type="aij"):
         """A class to implement paradiag timestepping.
@@ -199,8 +199,12 @@ class paradiag(object):
 
             preproc(self, wndw)
 
+            with self.aaos.w_all.dat.vec_ro as v:
+                v.copy(self.X)
+
             with self.opts.inserted_options():
                 self.snes.solve(None, self.X)
+
             self.aaos.update(self.X)
 
             self._record_diagnostics()
