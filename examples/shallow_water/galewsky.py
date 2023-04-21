@@ -50,8 +50,8 @@ sparameters = {
     'mat_type': 'matfree',
     'ksp_type': 'fgmres',
     'ksp': {
-        'atol': 1e-8,
-        'rtol': 1e-8,
+        'atol': 1e-5,
+        'rtol': 1e-5,
         'max_it': 400,
     },
     'pc_type': 'mg',
@@ -95,6 +95,7 @@ sparameters_diag = {
         'rtol': 1e-10,
         'stol': 1e-12,
         'ksp_ew': None,
+        'ksp_ew_version': 1,
     },
     'mat_type': 'matfree',
     'ksp_type': 'fgmres',
