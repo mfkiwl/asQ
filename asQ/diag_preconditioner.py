@@ -7,7 +7,7 @@ from asQ.pencil import Pencil, Subcomm
 import importlib
 from asQ.profiling import memprofile
 
-import complex_proxy.vector as cpx
+import asQ.complex_proxy.vector as cpx
 
 
 class DiagFFTPC(object):
@@ -61,15 +61,19 @@ class DiagFFTPC(object):
         paradiag.diagfftpc = self
 
         # option for whether to use slice or window average for block jacobian
-        self.jac_average = PETSc.Options().getString(
-            f"{prefix}{self.prefix}jac_average", default='window')
-
         valid_jac_averages = ['window', 'slice', 'linear', 'initial', 'reference']
+        jac_option = f"{prefix}{self.prefix}jac_average"
 
-        if self.jac_average not in valid_jac_averages:
-            raise ValueError("diagfft_jac_average must be one of "+" or ".join(valid_jac_averages))
+        def jac_average():
+            average = PETSc.Options().getString(jac_option, default='window')
+            if average not in valid_jac_averages:
+                raise ValueError(f"{jac_option} must be one of "+" or ".join(valid_jac_averages))
+            return average
 
-        if self.jac_average == 'reference' and self.aaos.reference_state is None:
+        self.jac_average = jac_average
+        jac_average = self.jac_average()
+
+        if jac_average == 'reference' and self.aaos.reference_state is None:
             raise ValueError("AllAtOnceSystem must be provided a reference state to use \'reference\' for diagfft_jac_average.")
 
         # this time slice part of the all at once solution
@@ -117,7 +121,7 @@ class DiagFFTPC(object):
                                                             bc, 0*bc.function_arg)))
 
         # function to do global reduction into for average block jacobian
-        if self.jac_average in ('window', 'slice'):
+        if jac_average in ('window', 'slice'):
             self.ureduce = fd.Function(self.blockV)
             self.uwrk = fd.Function(self.blockV)
 
@@ -281,14 +285,14 @@ class DiagFFTPC(object):
         an operator that is block diagonal in the 2x2 system coupling
         real and imaginary parts.
         '''
-        if self.jac_average == 'linear':
-            PETSc.Sys.Print("No time average")
+        jac_average = self.jac_average()
+        if jac_average == 'linear':
             return
-        elif self.jac_average == 'initial':
+        elif jac_average == 'initial':
             cpx.set_real(self.u0, self.aaos.initial_condition)
             cpx.set_imag(self.u0, self.aaos.initial_condition)
             return
-        elif self.jac_average == 'reference':
+        elif jac_average == 'reference':
             cpx.set_real(self.u0, self.aaos.reference_state)
             cpx.set_imag(self.u0, self.aaos.reference_state)
             return
@@ -301,9 +305,9 @@ class DiagFFTPC(object):
                 ur.assign(ur + ui)
 
         # average only over current time-slice
-        if self.jac_average == 'slice':
+        if jac_average == 'slice':
             self.ureduce /= fd.Constant(self.nlocal_timesteps)
-        else:  # implies self.jac_average == 'window':
+        else:  # implies jac_average == 'window':
             self.paradiag.ensemble.allreduce(self.ureduce, self.uwrk)
             self.ureduce.assign(self.uwrk/fd.Constant(self.ntimesteps))
 
