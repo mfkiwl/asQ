@@ -76,8 +76,8 @@ def G(u, uout, **kwargs):
 
     miniapp.dt.assign(dtc)
     miniapp.solve(1, ics=u, **kwargs)
-
     uout.assign(miniapp.w0)
+
     miniapp.dt.assign(dtold)
 
 
@@ -86,8 +86,8 @@ def F(u, uout, **kwargs):
 
     miniapp.dt.assign(dtf)
     miniapp.solve(ntf, ics=u, **kwargs)
-
     uout.assign(miniapp.w0)
+
     miniapp.dt.assign(dtold)
 
 
