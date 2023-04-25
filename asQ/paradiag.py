@@ -43,7 +43,7 @@ class paradiag(object):
                  alpha, time_partition, bcs=[],
                  solver_parameters={},
                  reference_state=None,
-                 circ="picard",
+                 circ=None,
                  tol=1.0e-6, maxits=10,
                  ctx={}, block_ctx={}, block_mat_type="aij"):
         """A class to implement paradiag timestepping.
