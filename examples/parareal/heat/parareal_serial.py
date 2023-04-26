@@ -72,23 +72,15 @@ miniapp = SerialMiniApp(dtf, theta,
 
 
 def G(u, uout, **kwargs):
-    dtold = miniapp.dt.values()[0]
-
     miniapp.dt.assign(dtc)
     miniapp.solve(1, ics=u, **kwargs)
     uout.assign(miniapp.w0)
 
-    miniapp.dt.assign(dtold)
-
 
 def F(u, uout, **kwargs):
-    dtold = miniapp.dt.values()[0]
-
     miniapp.dt.assign(dtf)
     miniapp.solve(ntf, ics=u, **kwargs)
     uout.assign(miniapp.w0)
-
-    miniapp.dt.assign(dtold)
 
 
 Print('### === --- Timestepping loop --- === ###')
@@ -155,13 +147,11 @@ Fk = coarse_series()
 Gk1 = coarse_series()
 Uk1 = coarse_series()
 
-Gk[0].assign(uinitial)
+Gk1[0].assign(uinitial)
 for i in range(ntc):
-    G(Gk[i], Gk[i+1])
+    G(Gk1[i], Gk1[i+1])
 
-copy_series(Uk, Gk)
-copy_series(Gk1, Gk)
-copy_series(Uk1, Gk)
+copy_series(Uk1, Gk1)
 
 
 # ## parareal iterations
@@ -173,20 +163,11 @@ for it in range(nits):
     for i in range(ntc):
         F(Uk[i], Fk[i+1])
 
-    Uk1[0].assign(uinitial)
-
     for i in range(ntc):
         G(Uk1[i], Gk1[i+1])
 
         Uk1[i+1].assign(Fk[i+1] + Gk1[i+1] - Gk[i+1])
 
+    res = series_error(Uk, Uk1)
     err = series_error(userial, Uk1)
-    Print(it, err)
-
-# Print('')
-# Print('### === --- Iteration counts --- === ###')
-# Print('')
-#
-# Print(f'linear iterations: {linear_its} | iterations per timestep: {linear_its/nt}')
-# Print(f'nonlinear iterations: {nonlinear_its} | iterations per timestep: {nonlinear_its/nt}')
-# Print('')
+    Print(f"{str(it).ljust(3)} | {err:.5e} | {res:.5e}")

@@ -35,7 +35,7 @@ nslices = global_comm.size
 assert ntf == nslices
 
 time_partition = tuple(1 for _ in range(ntf))
-ensemble = asQ.create_ensemble(time_partition)
+ensemble = asQ.create_ensemble(time_partition, global_comm)
 is_root = ensemble.ensemble_comm.rank == 0
 
 mesh = fd.UnitSquareMesh(nx, nx, quadrilateral=True, comm=ensemble.comm)

@@ -36,7 +36,7 @@ dtc = ntf*dtf
 assert ntf == global_comm.size
 
 time_partition = tuple(1 for _ in range(ntf))
-ensemble = asQ.create_ensemble(time_partition)
+ensemble = asQ.create_ensemble(time_partition, global_comm)
 rank = ensemble.ensemble_comm.rank
 is_root = (rank == 0)
 

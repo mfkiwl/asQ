@@ -29,7 +29,7 @@ assert (nt % nslices) == 0
 slice_length = nt//nslices
 
 time_partition = tuple(slice_length for _ in range(nslices))
-ensemble = asQ.create_ensemble(time_partition)
+ensemble = asQ.create_ensemble(time_partition, global_comm)
 
 mesh = fd.UnitSquareMesh(nx, nx, quadrilateral=True, comm=ensemble.comm)
 x, y = fd.SpatialCoordinate(mesh)
