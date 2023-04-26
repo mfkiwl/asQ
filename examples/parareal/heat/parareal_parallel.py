@@ -168,6 +168,8 @@ for i in range(rank+1):
     F(userial[1], userial[1])
 
 # ## initialise coarse points
+# Uk[0] is point at beginning of local interval
+# Uk[1] is point at end of local interval
 
 Gk = coarse_series()
 Uk = coarse_series()
