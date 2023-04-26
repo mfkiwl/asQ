@@ -147,7 +147,13 @@ Fk = coarse_series()
 Gk1 = coarse_series()
 Uk1 = coarse_series()
 
+Gk[0].assign(uinitial)
+Uk[0].assign(uinitial)
+Fk[0].assign(uinitial)
+
 Gk1[0].assign(uinitial)
+Uk1[0].assign(uinitial)
+
 for i in range(ntc):
     G(Gk1[i], Gk1[i+1])
 
@@ -165,7 +171,6 @@ for it in range(nits):
 
     for i in range(ntc):
         G(Uk1[i], Gk1[i+1])
-
         Uk1[i+1].assign(Fk[i+1] + Gk1[i+1] - Gk[i+1])
 
     res = series_error(Uk, Uk1)
