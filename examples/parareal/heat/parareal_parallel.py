@@ -214,26 +214,22 @@ for it in range(nits):
         Fk[0].assign(uinitial)
 
     # ## step 2: coarse propogator
-    for i in range(ntc-1):
+
+    for i in range(ntc):
         # propogate and correct
         if rank == i:
             G(Uk1[0], Gk1[1])
             Uk1[1].assign(Fk[1] + Gk1[1] - Gk[1])
 
-        # send corrected solution
-        if rank == i:
+        # send corrected solution on all but last interval
+        last_interval = (i == (ntc-1))
+
+        if rank == i and not last_interval:
             ensemble.send(Uk1[1], dest=dst, tag=dst)
-        elif rank == (i+1):
+        elif rank == (i+1) and not last_interval:
             ensemble.recv(Uk1[0], source=src, tag=rank)
-        else:
-            pass
 
-    # remainder loop
-    if is_last:
-        G(Uk1[0], Gk1[1])
-        Uk1[1].assign(Fk[1] + Gk1[1] - Gk[1])
-
-    # ## check: error vs serial solution, and change in solution over this iteration
+    # ## step 3: check error vs serial solution and change in solution over this iteration
 
     errl, errg = parallel_errnorm(userial[1], Uk1[1])
     resl, resg = parallel_errnorm(Uk[1], Uk1[1])
