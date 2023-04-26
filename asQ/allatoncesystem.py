@@ -8,13 +8,18 @@ from asQ.parallel_arrays import in_range, DistributedDataLayout1D
 
 
 class JacobianMatrix(object):
+    prefix = "aaos_jacobian_"
+
     @memprofile
-    def __init__(self, aaos):
+    def __init__(self, aaos, snes=None):
         r"""
         Python matrix for the Jacobian of the all at once system
         :param aaos: The AllAtOnceSystem object
         """
         self.aaos = aaos
+
+        if snes is not None:
+            self.snes = snes
 
         # function to linearise around, and timestep from end of previous slice
         self.u = fd.Function(self.aaos.function_space_all)
@@ -36,13 +41,53 @@ class JacobianMatrix(object):
         # Jform contributions from the previous step
         self.Jform_prev = fd.derivative(self.aao_form, self.urecv)
 
+        # option for what state to linearise around
+        valid_jacobian_states = ['current', 'linear', 'initial', 'reference']
+
+        if snes is None:
+            self.jacobian_state = lambda: 'current'
+        else:
+            prefix = snes.getOptionsPrefix()
+            prefix += self.prefix
+            state_option = f"{prefix}state"
+
+            def jacobian_state():
+                state = PETSc.Options().getString(state_option, default='current')
+                if state not in valid_jacobian_states:
+                    raise ValueError(f"{state_option} must be one of "+" or ".join(valid_jacobian_states))
+                return state
+            self.jacobian_state = jacobian_state
+
+        jacobian_state = self.jacobian_state()
+
+        if jacobian_state == 'reference' and self.aaos.reference_state is None:
+            raise ValueError("AllAtOnceSystem must be provided a reference state to use \'reference\' for aaos_jacobian_state.")
+
     def update(self, X=None):
         # update the state to linearise around from the current all-at-once solution
-        if X is None:
-            self.u.assign(self.aaos.w_all)
-            self.urecv.assign(self.aaos.w_recv)
-        else:
-            self.aaos.update(X, wall=self.u, wrecv=self.urecv, blocking=True)
+
+        aaos = self.aaos
+        jacobian_state = self.jacobian_state()
+
+        if jacobian_state == 'linear':
+            return
+
+        elif jacobian_state == 'current':
+            if X is None:
+                self.u.assign(aaos.w_all)
+                self.urecv.assign(aaos.w_recv)
+            else:
+                aaos.update(X, wall=self.u, wrecv=self.urecv, blocking=True)
+
+        elif jacobian_state == 'initial':
+            self.urecv.assign(aaos.initial_condition)
+            for i in range(aaos.nlocal_timesteps):
+                aaos.set_field(i, aaos.initial_condition, f_alls=self.u.subfunctions)
+
+        elif jacobian_state == 'reference':
+            self.urecv.assign(aaos.reference_state)
+            for i in range(aaos.nlocal_timesteps):
+                aaos.set_field(i, aaos.reference_state, f_alls=self.u.subfunctions)
 
     @PETSc.Log.EventDecorator()
     @memprofile
@@ -114,9 +159,12 @@ class AllAtOnceSystem(object):
         self.nlocal_timesteps = self.layout.local_size
         self.ntimesteps = self.layout.global_size
 
-        self.initial_condition = w0
         self.function_space = w0.function_space()
-        self.reference_state = reference_state
+        self.initial_condition = fd.Function(self.function_space).assign(w0)
+        if reference_state is None:
+            self.reference_state = None
+        else:
+            self.reference_state = fd.Function(self.function_space).assign(reference_state)
         self.boundary_conditions = bcs
         self.ncomponents = len(self.function_space.subfunctions)
 
@@ -164,7 +212,6 @@ class AllAtOnceSystem(object):
         self.w_send = fd.Function(self.function_space)
 
         self.aao_form = self.construct_aao_form(self.w_all, self.w_recv)
-        self.jacobian = JacobianMatrix(self)
 
     def set_boundary_conditions(self, bcs):
         """

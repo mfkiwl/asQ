@@ -8,11 +8,11 @@ import asQ
 
 global_comm = fd.COMM_WORLD
 
-T = 0.2
-nt = 32
-nx = 16
+T = 0.4
+nt = 512
+nx = 32
 cfl = 1.
-theta = 0.5
+theta = 1.0
 nu = 1.
 alpha = 1e-4
 
@@ -22,8 +22,10 @@ dtf = T/nt
 cfl = nu*dtf/(dx*dx)
 Print(cfl, dtf)
 verbose = False
+serial = False
+tol = 1e-16
 
-ntf = 8
+ntf = 16
 ntc = nt//ntf
 nits = ntc
 
@@ -31,12 +33,12 @@ assert (nt % ntc) == 0
 
 dtc = ntf*dtf
 
-nslices = global_comm.size
-assert ntf == nslices
+assert ntf == global_comm.size
 
 time_partition = tuple(1 for _ in range(ntf))
 ensemble = asQ.create_ensemble(time_partition)
-is_root = ensemble.ensemble_comm.rank == 0
+rank = ensemble.ensemble_comm.rank
+is_root = (rank == 0)
 
 mesh = fd.UnitSquareMesh(nx, nx, quadrilateral=True, comm=ensemble.comm)
 x, y = fd.SpatialCoordinate(mesh)
@@ -62,12 +64,12 @@ serial_sparams = {
     'snes': {
         # 'monitor': None,
         # 'converged_reason': None,
-        'rtol': 1e-8,
+        'rtol': 1e-12,
     },
     'ksp': {
         # 'monitor': None,
         # 'converged_reason': None,
-        'rtol': 1e-8,
+        'rtol': 1e-12,
     },
     'ksp_type': 'preonly',
     'pc_type': 'lu',
@@ -75,7 +77,7 @@ serial_sparams = {
 
 block_sparams = {
     'ksp': {
-        'rtol': 1e-5,
+        'rtol': 1e-12,
     },
     'ksp_type': 'preonly',
     'pc_type': 'lu',
@@ -86,12 +88,12 @@ pdg_sparams = {
     'snes': {
         # 'monitor': None,
         # 'converged_reason': None,
-        'rtol': 1e-8,
+        'rtol': 1e-12,
     },
     'ksp': {
         # 'monitor': None,
         # 'converged_reason': None,
-        'rtol': 1e-8,
+        'rtol': 1e-12,
     },
     'mat_type': 'matfree',
     'ksp_type': 'fgmres',
@@ -99,6 +101,7 @@ pdg_sparams = {
     'pc_python_type': 'asQ.DiagFFTPC',
     'diagfft_block': block_sparams
 }
+
 
 if verbose and is_root:
     serial_sparams['snes']['monitor'] = None
@@ -113,12 +116,12 @@ miniapp = SerialMiniApp(dtc, theta,
                         serial_sparams)
 
 pdg = asQ.paradiag(ensemble=ensemble,
-                   form_function=form_function,
                    form_mass=form_mass,
+                   form_function=form_function,
                    w0=uinitial, dt=dtf, theta=theta,
-                   alpha=alpha, time_partition=time_partition,
+                   alpha=alpha, circ=None,
+                   time_partition=time_partition,
                    solver_parameters=pdg_sparams)
-
 
 # ## define F and G
 
@@ -129,17 +132,16 @@ def G(u, uout, **kwargs):
     uout.assign(miniapp.w0)
 
 
-def F(u, uout, serial=False, **kwargs):
+def F(u, uout, serial=serial, **kwargs):
     if serial:
         miniapp.dt.assign(dtf)
         miniapp.solve(ntf, ics=u, **kwargs)
         uout.assign(miniapp.w0)
-
     else:
         pdg.aaos.next_window(u)
-        pdg.solve(1, **kwargs)
+        pdg.solve(nwindows=1)
 
-        end_rank = ensemble.ensemble_comm.size - 1
+        end_rank = ntf-1
         pdg.aaos.get_field(-1, wout=uout)
         ensemble.bcast(uout, root=end_rank)
 
@@ -148,14 +150,12 @@ Print('### === --- Timestepping loop --- === ###')
 linear_its = 0
 nonlinear_its = 0
 
-if is_root:
-    ofile = fd.File("output/heat.pvd", comm=ensemble.comm)
-    uout = fd.Function(V)
-    # ofile.write(miniapp.w0, time=0)
+ofile = fd.File("output/heat.pvd")
+ofile.write(miniapp.w0, time=0)
 
 
 def preproc(app, step, t):
-    if verbose and is_root:
+    if verbose:
         Print('')
         Print(f'=== --- Timestep {step} --- ===')
         Print('')
@@ -168,8 +168,7 @@ def postproc(app, step, t):
     linear_its += app.nlsolver.snes.getLinearSolveIterations()
     nonlinear_its += app.nlsolver.snes.getIterationNumber()
 
-    if is_root:
-        ofile.write(app.w0, time=t)
+    ofile.write(app.w0, time=t)
 
 
 def coarse_series():
@@ -196,9 +195,6 @@ def series_error(exact, series):
 
 
 # ## find "exact" fine solution at coarse points in serial
-
-rank = ensemble.ensemble_comm.rank
-
 userial = coarse_series()
 userial[0].assign(uinitial)
 
@@ -211,10 +207,9 @@ uparallel[0].assign(uinitial)
 for i in range(ntc):
     F(uparallel[i], uparallel[i+1], serial=False)
 
-# for i in range(ntc):
-#     us = userial[i+1]
-#     up = uparallel[i+1]
-#     Print(rank, fd.errornorm(us, up)/fd.norm(us), comm=ensemble.comm)
+err = series_error(userial, uparallel)
+Print(rank, err)
+
 # from sys import exit
 # exit()
 
@@ -235,6 +230,7 @@ copy_series(Uk, Gk)
 copy_series(Gk1, Gk)
 copy_series(Uk1, Gk)
 
+
 # ## parareal iterations
 
 for it in range(nits):
@@ -242,7 +238,7 @@ for it in range(nits):
     copy_series(Gk, Gk1)
 
     for i in range(ntc):
-        F(Uk[i], Fk[i+1], serial=True)
+        F(Uk[i], Fk[i+1])
 
     Uk1[0].assign(uinitial)
 
@@ -251,16 +247,12 @@ for it in range(nits):
 
         Uk1[i+1].assign(Fk[i+1] + Gk1[i+1] - Gk[i+1])
 
+    err = series_error(userial, Uk1)
+    res = series_error(Uk, Uk1)
     if is_root:
-        err = series_error(userial, Uk1)
-        res = series_error(Uk, Uk1)
-        Print(f"\n{it}, {res}, {err}", comm=ensemble.comm)
-
-if is_root:
-    for i, u in enumerate(Uk1):
-        t = i*dtc
-        uout.assign(u)
-        ofile.write(uout, time=t)
+        Print(rank, it, err, res, comm=ensemble.comm)
+    if err < tol:
+        break
 
 # Print('')
 # Print('### === --- Iteration counts --- === ###')
